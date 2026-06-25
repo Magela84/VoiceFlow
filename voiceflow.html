@@ -67,7 +67,10 @@
     font-weight: normal; font-style: normal; font-display: swap;
   }
   html, body, #root { height: 100%; margin: 0; }
-  body { font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; }
+  /* mobile: use the *visible* viewport height so nothing is cut off behind the
+     browser's address bar (falls back to vh on older browsers) */
+  #root { height: 100vh; height: 100svh; }
+  body { font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; overscroll-behavior: none; }
   * { scrollbar-width: thin; }
   ::-webkit-scrollbar { width: 9px; height: 9px; }
   ::-webkit-scrollbar-thumb { background: #64748b66; border-radius: 8px; }
