@@ -70,7 +70,10 @@
   /* mobile: use the *visible* viewport height so nothing is cut off behind the
      browser's address bar (falls back to vh on older browsers) */
   #root { height: 100vh; height: 100svh; }
-  body { font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; overscroll-behavior: none; }
+  /* app is a fixed-height shell with its own scroll regions — never let the
+     page itself scroll/overflow (kills sideways drift from off-screen drawers) */
+  html, body { overflow: hidden; overscroll-behavior: none; }
+  body { font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; }
   * { scrollbar-width: thin; }
   ::-webkit-scrollbar { width: 9px; height: 9px; }
   ::-webkit-scrollbar-thumb { background: #64748b66; border-radius: 8px; }
@@ -1154,10 +1157,10 @@ function Toolbar(props){
       {/* right cluster */}
       <IconBtn icon={I.wave} label="Convert to Podcast" onClick={()=>openExport(true)} className="max-md:hidden" />
       <IconBtn icon={I.dl} label="Export audio (MP3)" onClick={()=>openExport(false)} className="max-md:hidden" />
-      <IconBtn icon={I.focus} label="Focus mode (F)" active={focusMode} onClick={()=>setFocusMode(f=>!f)} />
+      <IconBtn icon={I.focus} label="Focus mode (F)" active={focusMode} onClick={()=>setFocusMode(f=>!f)} className="max-md:hidden" />
       <IconBtn icon={I.spark} label="AI tools" active={aiOpen} onClick={()=>setAiOpen(o=>!o)} />
-      <IconBtn icon={dark ? I.sun : I.moon} label="Toggle theme" onClick={()=>setDark(d=>!d)} />
-      <IconBtn icon={I.gear} label="Settings" onClick={()=>setSettingsOpen(true)} />
+      <IconBtn icon={dark ? I.sun : I.moon} label="Toggle theme" onClick={()=>setDark(d=>!d)} className="max-md:hidden" />
+      <IconBtn icon={I.gear} label="Settings" onClick={()=>setSettingsOpen(true)} className="max-md:hidden" />
     </header>
   );
 }
