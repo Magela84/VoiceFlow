@@ -648,6 +648,27 @@ function App(){
     if(window.speechSynthesis) window.speechSynthesis.onvoiceschanged = load;
   }, []);
 
+  /* iOS unlock: Safari/WebKit blocks speechSynthesis until a real user gesture
+     triggers a speak(). Prime it (silently) on the first tap so playback works. */
+  const unlockedRef = useRef(false);
+  useEffect(()=>{
+    if(!window.speechSynthesis) return;
+    const unlock = ()=>{
+      if(unlockedRef.current) return;
+      unlockedRef.current = true;
+      try {
+        const u = new SpeechSynthesisUtterance(' ');
+        u.volume = 0;
+        window.speechSynthesis.speak(u);
+        window.speechSynthesis.resume();
+        synthVoices.current = window.speechSynthesis.getVoices();
+      } catch(e){}
+    };
+    window.addEventListener('pointerdown', unlock);
+    window.addEventListener('touchend', unlock);
+    return ()=>{ window.removeEventListener('pointerdown', unlock); window.removeEventListener('touchend', unlock); };
+  }, []);
+
   function pickVoice(vId){
     const def = VOICES.find(v=>v.id===vId) || VOICES[0];
     const list = synthVoices.current || [];
@@ -742,6 +763,7 @@ function App(){
 
     setCurSentence(sIdx);
     setCurWord(sent.wStart);
+    try { synth.resume(); } catch(e){}   // iOS can leave the queue paused between sentences
     synth.speak(u);
   }, [words, toast, speakEleven]);
 
