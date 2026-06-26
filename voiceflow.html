@@ -200,6 +200,34 @@ const SPEED_PRESETS = [
   { label:'Focus',  value:1.5 },
 ];
 
+/* Score a device voice by how natural it tends to sound. Higher = better.
+   Used to auto-pick the best available voice instead of the first match. */
+function voiceQuality(v){
+  const n = (v.name || '').toLowerCase();
+  let s = 0;
+  if(/natural|neural/.test(n)) s += 6;            // Microsoft/Edge & modern neural voices
+  if(/google/.test(n)) s += 4;                    // Google voices (Chrome/Android) sound good
+  if(/enhanced|premium/.test(n)) s += 4;          // Apple "Enhanced"/"Premium" downloads
+  if(/online/.test(n)) s += 3;
+  if(/samantha|siri|aaron|nicky|evan|karen|daniel|moira|tessa|serena/.test(n)) s += 2; // Apple quality voices
+  if(v.localService === false) s += 1;            // network voices are usually higher quality
+  if(/compact|eloquence|fred|albert|zarvox|trinoids|novelty|bad news|bells/.test(n)) s -= 6; // robotic/novelty
+  return s;
+}
+/* Pick the most natural device voice for a named VoiceFlow voice, distributing
+   distinct real voices across same-language presets so they still feel varied. */
+function pickBestVoice(list, def){
+  if(!list || !list.length) return null;
+  const lang2 = (def.lang || 'en').slice(0,2);
+  const exact = list.filter(v=>v.lang === def.lang);
+  const fam   = list.filter(v=>v.lang && v.lang.slice(0,2) === lang2);
+  const pool  = (exact.length ? exact : (fam.length ? fam : list.slice())).slice()
+                  .sort((a,b)=>voiceQuality(b) - voiceQuality(a));
+  const sameLang = VOICES.filter(v=>(v.lang || '').slice(0,2) === lang2);
+  const off = Math.max(0, sameLang.findIndex(v=>v.id === def.id));
+  return pool[off % pool.length] || pool[0] || null;
+}
+
 /* ────────────────────────────────────────────────────────────────────────
    TEXT TOKENIZER  →  words[] + sentences[] with char offsets
    ──────────────────────────────────────────────────────────────────────── */
@@ -671,11 +699,7 @@ function App(){
 
   function pickVoice(vId){
     const def = VOICES.find(v=>v.id===vId) || VOICES[0];
-    const list = synthVoices.current || [];
-    // best match by language
-    let v = list.find(x=>x.lang === def.lang);
-    if(!v) v = list.find(x=>x.lang && x.lang.slice(0,2) === def.lang.slice(0,2));
-    return { sysVoice:v||null, meta:def };
+    return { sysVoice: pickBestVoice(synthVoices.current || [], def), meta:def };
   }
 
   const playingRef = useRef(false);
@@ -1073,9 +1097,9 @@ function Toolbar(props){
     const synth = window.speechSynthesis; if(!synth) return;
     synth.cancel();
     const u = new SpeechSynthesisUtterance(`Hi, I'm ${v.name}. This is how I sound.`);
-    const sys = synth.getVoices();
-    const match = sys.find(x=>x.lang===v.lang) || sys.find(x=>x.lang && x.lang.slice(0,2)===v.lang.slice(0,2));
-    if(match) u.voice = match; u.lang = v.lang; u.pitch = v.pitch; u.rate = rate;
+    const match = pickBestVoice(synth.getVoices(), v);
+    if(match) u.voice = match; u.lang = (match && match.lang) || v.lang; u.pitch = v.pitch; u.rate = rate;
+    try { synth.resume(); } catch(e){}
     synth.speak(u);
   }
 
