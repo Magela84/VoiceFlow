@@ -1970,11 +1970,12 @@ function Settings(props){
                 <div>
                   <div className="text-xs font-semibold mt-1 mb-1">ElevenLabs API key</div>
                   <div className="flex gap-2">
-                    <input type="password" value={elevenKey} onChange={e=>setElevenKey(e.target.value)} placeholder="xi-…" autoComplete="off"
+                    <input type="text" value={elevenKey} onChange={e=>setElevenKey(e.target.value)} placeholder="sk_… (paste your key)"
+                      autoComplete="off" autoCapitalize="none" autoCorrect="off" spellCheck={false} inputMode="text"
                       className="flex-1 rounded-lg bg-slate-100 dark:bg-navy3/60 px-3 py-2 text-sm font-mono outline-none focus:ring-2 ring-accent" />
                     <button onClick={saveEleven} className="px-3 rounded-lg bg-accent text-white text-sm font-semibold">Save</button>
                   </div>
-                  <p className="text-[11px] text-slate-400 mt-1">Voice cloning requires a paid ElevenLabs plan. Key is stored locally and sent directly to ElevenLabs.</p>
+                  <p className="text-[11px] text-slate-400 mt-1">Paste your key, or type it. Voice cloning needs a paid ElevenLabs plan; listening with ready-made voices works on the free tier. Key is stored locally and sent only to ElevenLabs.</p>
                 </div>
               </div>
 
