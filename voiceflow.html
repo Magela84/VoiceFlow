@@ -701,7 +701,9 @@ function App(){
      triggers a speak(). Prime it (silently) on the first tap so playback works. */
   const unlockedRef = useRef(false);
   useEffect(()=>{
-    if(!window.speechSynthesis) return;
+    // Only iOS needs the silent-utterance unlock; on desktop it can interfere
+    // with the first real speak (queue/cancel race), so skip it there.
+    if(!window.speechSynthesis || !IS_IOS) return;
     const unlock = ()=>{
       if(unlockedRef.current) return;
       unlockedRef.current = true;
