@@ -720,9 +720,14 @@ function App(){
     return ()=>{ window.removeEventListener('pointerdown', unlock); window.removeEventListener('touchend', unlock); };
   }, []);
 
-  function pickVoice(vId){
+  function pickVoice(vId, localOnly){
     const def = VOICES.find(v=>v.id===vId) || VOICES[0];
-    return { sysVoice: pickBestVoice(synthVoices.current || [], def), meta:def };
+    let list = synthVoices.current || [];
+    if(localOnly){
+      const local = list.filter(v=>v.localService !== false);  // skip flaky cloud voices
+      if(local.length) list = local;
+    }
+    return { sysVoice: pickBestVoice(list, def), meta:def };
   }
 
   const playingRef = useRef(false);
@@ -730,6 +735,7 @@ function App(){
   const orderIdxRef = useRef(0);
   const audioRef = useRef(null);     // <audio> for cloned-voice playback
   const abortRef = useRef(null);     // aborts in-flight ElevenLabs fetch
+  const startWatchRef = useRef(null);// watchdog: detect a voice that never starts
 
   /* shared: what to do after a sentence finishes (repeat / advance / finish) */
   function advanceAfter(sIdx){
@@ -777,27 +783,32 @@ function App(){
     });
   }, [toast]);
 
-  /* speak a single sentence (by sentence index) */
-  const speakSentence = useCallback((sIdx)=>{
+  function clearStartWatch(){ if(startWatchRef.current){ clearTimeout(startWatchRef.current); startWatchRef.current = null; } }
+
+  /* speak a single sentence (by sentence index). forceLocal=true uses a
+     guaranteed local voice (fallback when an online voice stalls). */
+  const speakSentence = useCallback((sIdx, forceLocal)=>{
     const st = stateRef.current;
     if((st.cloned||[]).some(v=>v.id===st.voiceId)){ speakEleven(sIdx); return; }
     const synth = window.speechSynthesis;
     if(!synth){ toast('Web Speech API not supported in this browser', '#ef4444'); return; }
     const sent = st.sentences[sIdx];
     if(!sent) { stopAll(); return; }
+    clearStartWatch();
 
     const u = new SpeechSynthesisUtterance(sent.text);
-    const { sysVoice, meta } = pickVoice(st.voiceId);
+    const { sysVoice, meta } = pickVoice(st.voiceId, forceLocal);
     if(sysVoice) u.voice = sysVoice;
     u.lang = (sysVoice && sysVoice.lang) || meta.lang;
     u.rate = Math.max(0.5, Math.min(4, st.rate));
     u.pitch = meta.pitch;
     u.volume = st.volume;
 
+    let started = false;
+    u.onstart = ()=>{ started = true; clearStartWatch(); };
     u.onboundary = (e)=>{
       if(e.name && e.name !== 'word' && e.charIndex == null) return;
       const globalChar = sent.startChar + (e.charIndex || 0);
-      // find word containing globalChar
       let wi = -1;
       for(let i=sent.wStart; i<=sent.wEnd; i++){
         if(words[i] && words[i].start <= globalChar && globalChar < words[i].end){ wi = i; break; }
@@ -805,13 +816,24 @@ function App(){
       }
       if(wi >= 0) setCurWord(wi);
     };
-
-    u.onend = ()=>{ advanceAfter(sIdx); };
+    u.onend = ()=>{ clearStartWatch(); advanceAfter(sIdx); };
 
     setCurSentence(sIdx);
     setCurWord(sent.wStart);
     try { synth.resume(); } catch(e){}   // iOS can leave the queue paused between sentences
     synth.speak(u);
+
+    // Edge's "Online (Natural)" voices sometimes never start (silent). If no
+    // onstart fires shortly, retry this sentence once with a local voice.
+    if(!forceLocal){
+      startWatchRef.current = setTimeout(()=>{
+        startWatchRef.current = null;
+        if(playingRef.current && !started){
+          try { synth.cancel(); } catch(e){}
+          speakSentence(sIdx, true);
+        }
+      }, 1700);
+    }
   }, [words, toast, speakEleven]);
 
   const keepAliveRef = useRef(null);
@@ -826,6 +848,7 @@ function App(){
   }
   function killAudio(){
     stopKeepAlive();
+    clearStartWatch();
     if(window.speechSynthesis) window.speechSynthesis.cancel();
     if(audioRef.current){ try{ audioRef.current.pause(); }catch(e){} audioRef.current = null; }
     if(abortRef.current){ try{ abortRef.current.abort(); }catch(e){} abortRef.current = null; }
