@@ -568,6 +568,24 @@ function App(){
   const [dark, setDark] = useState(true);
   useEffect(()=>{ document.body.classList.toggle('dark', dark); }, [dark]);
 
+  /* one-tap key import via URL hash (#elevenkey=… / #aikey=…) — for devices
+     where pasting into the field is blocked. Saved then wiped from the URL. */
+  useEffect(()=>{
+    try {
+      const h = location.hash || '';
+      if(!h) return;
+      let saved = false;
+      const el = h.match(/elevenkey=([^&]+)/);
+      if(el){ localStorage.setItem('vf_eleven_key', decodeURIComponent(el[1]).trim()); saved = true; }
+      const ak = h.match(/aikey=([^&]+)/);
+      if(ak){ localStorage.setItem('vf_apikey', decodeURIComponent(ak[1]).trim()); saved = true; }
+      if(saved){
+        history.replaceState(null, '', location.pathname + location.search);
+        setTimeout(()=>toast('API key saved ✓ — you can now use the voices', '#10b981'), 400);
+      }
+    } catch(e){}
+  }, []);
+
   /* toasts */
   const [toasts, setToasts] = useState([]);
   const toast = useCallback((msg, color)=>{
@@ -1973,6 +1991,8 @@ function Settings(props){
                     <input type="text" value={elevenKey} onChange={e=>setElevenKey(e.target.value)} placeholder="sk_… (paste your key)"
                       autoComplete="off" autoCapitalize="none" autoCorrect="off" spellCheck={false} inputMode="text"
                       className="flex-1 rounded-lg bg-slate-100 dark:bg-navy3/60 px-3 py-2 text-sm font-mono outline-none focus:ring-2 ring-accent" />
+                    <button onClick={async ()=>{ try{ const t = await navigator.clipboard.readText(); if(t && t.trim()){ setElevenKey(t.trim()); toast('Pasted from clipboard','#10b981'); } else toast('Clipboard is empty — copy your key first','#f59e0b'); }catch(e){ toast('Tap the box, hold, then choose Paste','#f59e0b'); } }}
+                      className="px-3 rounded-lg bg-slate-200 dark:bg-navy3 text-sm font-semibold" title="Paste from clipboard">Paste</button>
                     <button onClick={saveEleven} className="px-3 rounded-lg bg-accent text-white text-sm font-semibold">Save</button>
                   </div>
                   <p className="text-[11px] text-slate-400 mt-1">Paste your key, or type it. Voice cloning needs a paid ElevenLabs plan; listening with ready-made voices works on the free tier. Key is stored locally and sent only to ElevenLabs.</p>
