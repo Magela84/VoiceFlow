@@ -473,15 +473,22 @@ async function elevenClone(name, files){
   const res = await fetch('https://api.elevenlabs.io/v1/voices/add', {
     method:'POST', headers:{ 'xi-api-key': key }, body: fd,
   });
-  if(!res.ok){
-    let m = 'HTTP ' + res.status;
-    try { const e = await res.json(); m = (e.detail && (e.detail.message || e.detail)) || m; } catch(_){}
-    if(res.status === 401) m = 'Invalid ElevenLabs API key.';
-    if(res.status === 403) m = 'Voice cloning needs a paid ElevenLabs plan.';
-    throw new Error(typeof m === 'string' ? m : 'Cloning failed');
-  }
+  if(!res.ok) throw new Error(await elevenError(res, 'Cloning failed'));
   const data = await res.json();
   return data.voice_id;
+}
+/* turn an ElevenLabs error response into a clear, actionable message */
+async function elevenError(res, fallback){
+  let detail = '';
+  try { const e = await res.json(); detail = (e.detail && (e.detail.message || (typeof e.detail==='string'?e.detail:''))) || ''; } catch(_){}
+  if(res.status === 401){
+    return /permission/i.test(detail)
+      ? 'Your ElevenLabs key is missing permissions. In ElevenLabs → API Keys, create a key with access to Text to Speech and Voices (or "Has access to all").'
+      : 'Invalid ElevenLabs API key — check Settings → Voice.';
+  }
+  if(res.status === 403) return 'Voice cloning needs a paid ElevenLabs plan.';
+  if(res.status === 429) return 'ElevenLabs rate/character limit reached — try again later.';
+  return detail || fallback;
 }
 async function elevenTTS(voiceId, text, signal){
   const key = VF_11.key();
@@ -491,11 +498,7 @@ async function elevenTTS(voiceId, text, signal){
     headers:{ 'xi-api-key': key, 'content-type':'application/json', 'accept':'audio/mpeg' },
     body: JSON.stringify({ text, model_id:'eleven_multilingual_v2' }),
   });
-  if(!res.ok){
-    let m = 'HTTP ' + res.status;
-    try { const e = await res.json(); m = (e.detail && (e.detail.message || e.detail)) || m; } catch(_){}
-    throw new Error(typeof m === 'string' ? m : 'Speech generation failed');
-  }
+  if(!res.ok) throw new Error(await elevenError(res, 'Speech generation failed'));
   return await res.blob();
 }
 function loadClonedVoices(){ try { return JSON.parse(localStorage.getItem('vf_voices') || '[]'); } catch(e){ return []; } }
