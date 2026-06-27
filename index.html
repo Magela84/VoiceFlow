@@ -128,6 +128,7 @@ const I = {
   trash: (p)=>(<svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>),
   dl:    (p)=>(<svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>),
   wave:  (p)=>(<svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12h2l2-6 3 14 3-18 3 14 2-4h3"/></svg>),
+  loop:  (p)=>(<svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 014-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>),
 };
 
 /* ────────────────────────────────────────────────────────────────────────
@@ -651,9 +652,10 @@ function App(){
   const [curWord, setCurWord] = useState(-1);
 
   /* study options */
-  const [repeat, setRepeat] = useState(1);       // 1..3
+  const [repeat, setRepeat] = useState(1);       // 1..3 (per-sentence)
   const [sentencePause, setSentencePause] = useState(250); // ms
   const [readMode, setReadMode] = useState('normal'); // normal | study | skim
+  const [loop, setLoop] = useState(false);       // repeat whole document continuously
 
   /* display options */
   const [fontSize, setFontSize] = useState(20);
@@ -688,7 +690,7 @@ function App(){
 
   /* refs that the speech loop reads synchronously */
   const stateRef = useRef({});
-  stateRef.current = { rate, volume, voiceId, sentences, repeat, sentencePause, playOrder, readMode, cloned: clonedVoices };
+  stateRef.current = { rate, volume, voiceId, sentences, repeat, sentencePause, playOrder, readMode, cloned: clonedVoices, loop };
 
   const synthVoices = useRef([]);
   useEffect(()=>{
@@ -750,8 +752,13 @@ function App(){
     const order = st2.playOrder;
     let oi = order.indexOf(sIdx);
     if(oi === -1){ oi = orderIdxRef.current; }
-    const nextOi = oi + 1;
-    if(nextOi >= order.length){ finishDoc(); return; }
+    let nextOi = oi + 1;
+    if(nextOi >= order.length){
+      if(st2.loop && order.length){          // loop: wrap back to the start
+        nextOi = 0;
+        markProgress(100);
+      } else { finishDoc(); return; }
+    }
     orderIdxRef.current = nextOi;
     const nextS = order[nextOi];
     setCurSentence(nextS);
@@ -1076,6 +1083,7 @@ function App(){
           readMode={readMode} setReadMode={setReadMode}
           repeat={repeat} setRepeat={setRepeat}
           sentencePause={sentencePause} setSentencePause={setSentencePause}
+          loop={loop} setLoop={setLoop}
         />
       )}
       </>)}
@@ -1889,7 +1897,7 @@ function NotesTab({ anno, exportNotes }){
 /* ────────────────────────────────────────────────────────────────────────
    STUDY BAR (reading modes + sentence repeat)
    ──────────────────────────────────────────────────────────────────────── */
-function StudyBar({ readMode, setReadMode, repeat, setRepeat, sentencePause, setSentencePause }){
+function StudyBar({ readMode, setReadMode, repeat, setRepeat, sentencePause, setSentencePause, loop, setLoop }){
   const modes = [['normal','Normal'],['study','Study'],['skim','Skim']];
   return (
     <div className="shrink-0 h-12 px-4 flex items-center gap-3 border-t border-slate-200 dark:border-navy3 bg-white/70 dark:bg-navy2/60 backdrop-blur text-sm overflow-x-auto whitespace-nowrap">
@@ -1923,6 +1931,14 @@ function StudyBar({ readMode, setReadMode, repeat, setRepeat, sentencePause, set
       <input type="range" min="0" max="1500" step="50" value={sentencePause}
         onChange={e=>setSentencePause(parseInt(e.target.value))} className="w-28 text-slate-400" />
       <span className="text-xs tabular-nums text-slate-400 w-12">{sentencePause}ms</span>
+
+      <div className="w-px h-6 bg-slate-200 dark:bg-navy3" />
+
+      <button onClick={()=>setLoop(v=>!v)} title="Repeat the whole document continuously"
+        className={cx('flex items-center gap-1.5 text-xs font-bold px-3 h-7 rounded-md transition shrink-0',
+          loop ? 'bg-accent text-white' : 'bg-slate-100 dark:bg-navy3/60 text-slate-500 hover:text-slate-700 dark:hover:text-slate-200')}>
+        <I.loop className="w-4 h-4" /> Loop{loop && ' on'}
+      </button>
 
       <div className="ml-auto text-xs text-slate-400 hidden lg:block">
         <kbd className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-navy3 font-mono">Space</kbd> play ·
