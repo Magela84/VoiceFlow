@@ -2244,6 +2244,11 @@ function ExportModal({ onClose, doc, rate, volume, voiceId, initialPodcast, onCo
       ac.close();
       const pcm = bufferToMono(decoded);
 
+      // detect a silent recording (built-in voices often aren't captured by tab audio)
+      let peak = 0;
+      for(let i=0;i<pcm.length;i+=101){ const a = Math.abs(pcm[i]); if(a>peak) peak = a; }
+      if(peak < 0.004){ const er = new Error('SILENT'); er.silent = true; throw er; }
+
       let blob, ext, usedFallback = false;
       if(format==='mp3'){
         try { blob = encodeMP3(pcm, decoded.sampleRate, 128); ext='mp3'; }
@@ -2259,7 +2264,12 @@ function ExportModal({ onClose, doc, rate, volume, voiceId, initialPodcast, onCo
       onComplete && onComplete();
     } catch(e){
       try { stream.getTracks().forEach(t=>t.stop()); } catch(_){}
-      setStatus('error'); setErrMsg('Export failed: ' + (e && e.message ? e.message : e));
+      setStatus('error');
+      if(e && e.silent){
+        setErrMsg("The recording came out silent. The built-in voices play through your speakers, which “tab audio” doesn’t capture. Re-run and in the share dialog choose “Entire Screen” and turn ON “Share system audio” (keep your speakers on, not muted).");
+      } else {
+        setErrMsg('Export failed: ' + (e && e.message ? e.message : e));
+      }
     }
   }
 
@@ -2332,7 +2342,7 @@ function ExportModal({ onClose, doc, rate, volume, voiceId, initialPodcast, onCo
           )}
           {status==='idle' && HAS_TAB_CAPTURE && (
             <div className="rounded-xl bg-accent/8 border border-accent/20 p-3 text-xs text-slate-500 dark:text-slate-300 leading-relaxed">
-              The Web Speech voice plays through your speakers, so VoiceFlow records it by capturing this tab. When the picker appears, choose <b>“This Tab”</b> and switch on <b>“Share tab audio.”</b> Keep this tab focused while it records.
+              The built-in voice plays through your <b>speakers</b>, so for a recording with sound: when the share dialog opens, pick <b>“Entire Screen”</b> and turn ON <b>“Share system audio.”</b> Keep your speakers on (not muted) while it records. <span className="text-slate-400">(“This Tab” + tab audio usually records silence for built-in voices.)</span>
             </div>
           )}
           {(busy || status==='done') && (
